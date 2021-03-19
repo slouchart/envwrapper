@@ -1,10 +1,12 @@
 from importlib import import_module
 from os import environ as os_env
 from ast import literal_eval
-from typing import Iterable, Callable
+from typing import Iterable, Callable, Mapping
 import configparser as cfg
 import json
-import re
+
+
+from .parser import SimpleParser as EnvSimpleParser
 
 
 from .exceptions import ConfigurationError
@@ -12,6 +14,9 @@ from .exceptions import InclusionError, ExclusionError
 
 
 class EnvVar:
+    """
+    Wraps an OS environment variable, processes, casts its value
+    """
     NO_PREFIX = ''
     NO_BUNDLE = ''
     NO_PROXY = ''
@@ -144,7 +149,13 @@ class EnvVar:
 
         def iter_cast(x):
             if isinstance(x, Iterable):
-                return [self.sub_cast(item) for item in x]
+                if self.convert is tuple:
+                    return tuple((self.sub_cast(item) for item in x))
+                elif self.convert is dict:
+                    assert isinstance(x, Mapping)
+                    return {k: self.sub_cast(v) for k, v in x.items()}
+                else:
+                    return [self.sub_cast(item) for item in x]
             else:  # pragma: nocover
                 return x
 
@@ -203,7 +214,7 @@ class EnvVar:
 
 
 class EnvWrapper:
-    """In the conext of engineering 12-factors applications,
+    """In the context of engineering 12-factors applications,
     EnvWrapper is an adapter that provides a way to match two envvars
     interfaces:
     Interface 1: the list of expected envvars from os.environ
@@ -351,14 +362,15 @@ class EnvWrapper:
             return False
 
     def __len__(self) -> int:
+        """How many envvars are there?"""
         return len(dir(self))
 
     def _resolve_include_exclude(self, ref_name: str):
-        if ref_name not in self:
+        if ref_name not in self._vars:
             raise ConfigurationError(
                 f'Variable {ref_name} is referenced but not declared'
             )
-        return self[ref_name]
+        return bool(self._vars[ref_name].get_value())
 
     def keys(self):
         """Provided for use by FlaskApp.Config.from_mapping"""
@@ -397,10 +409,10 @@ class EnvWrapper:
         """Provided for use by FlaskApp.Config.from_object"""
         return self.keys()
 
-    def write_to_config(self, f, preserve_case=False,
-                        bool_values=EnvVar.DEFAULT_BOOL_VALUES,
-                        cls=cfg.ConfigParser,
-                        **kwargs):
+    def to_config(self, f, preserve_case=False,
+                  bool_values=EnvVar.DEFAULT_BOOL_VALUES,
+                  cls=cfg.ConfigParser,
+                  **kwargs):
 
         def append_var_to_default_section(parser, var_name, var, val):
             if not var.bundle:
@@ -422,16 +434,16 @@ class EnvWrapper:
         config = encode(self, target=cls, **kwargs)
         config.write(f)
 
-    def write_to_json(self, f, preserve_case=False, **kwargs):
+    def to_json(self, f, preserve_case=False, **kwargs):
         return json.dump(self, f, cls=self.DEFAULT_JSON_ENCODER,
                          preserve_case=preserve_case, **kwargs)
 
-    def write_to_source_file(self, f, sort_keys=False,
-                             space_around_delimiters=False,
-                             delimiter='=',
-                             value_delimiter='',
-                             inline_prefix='',
-                             inline_suffix=''):
+    def to_source_file(self, f, sort_keys=False,
+                       space_around_delimiters=False,
+                       delimiter='=',
+                       value_delimiter='',
+                       inline_prefix='',
+                       inline_suffix=''):
         items = self.collect()
         keys = sorted(items.keys()) if sort_keys else items.keys()
 
@@ -451,66 +463,22 @@ class EnvWrapper:
         for name in keys:
             f.write(f"{expression_builder(name, items[name])}\n")
 
-    class _SimpleParser:
-
-        IDENTIFIER_CHARS = '[A-Za-z0-9_]'
-        LINE_ENDS = '\n\r'
-
-        def __init__(self, delimiter='=', value_delimiter='',
-                     inline_prefix='', inline_suffix=''):
-            self.delimiter = delimiter
-            self.value_delimiter = value_delimiter
-            self.inline_prefix = inline_prefix
-            self.inline_suffix = inline_suffix
-
-            self._regexp = re.compile(self.pattern)
-
-        @property
-        def value_chars(self):
-            return fr'[^{self.value_delimiter}]' \
-                   if self.value_delimiter else r'.'
-
-        @property
-        def pattern(self):
-            return fr"^\s*{self. inline_prefix}\s*" \
-                   fr"(?P<name>{self.IDENTIFIER_CHARS}+)" \
-                   fr"\s*{self.delimiter}\s*" \
-                   fr"{self.value_delimiter}?" \
-                   fr"(?P<value>{self.value_chars}+)" \
-                   fr"{self.value_delimiter}?\s*" \
-                   fr"{self.inline_suffix}\s*$"
-
-        def pre_match(self, line):
-            return line.strip(self.LINE_ENDS)
-
-        def post_match(self, match):
-            name, value = match['name'], match['value']
-            return (name.strip(), value.strip()) \
-                if not self.value_delimiter \
-                else (name, value)
-
-        def __call__(self, f):
-            for line in f:
-                m = self._regexp.match(self.pre_match(line))
-                if m:
-                    yield self.post_match(m)
-
     @classmethod
-    def read_from_source_file(cls, f, bool_values=EnvVar.DEFAULT_BOOL_VALUES,
-                              parser=None, **kwargs):
+    def from_source_file(cls, f, bool_values=EnvVar.DEFAULT_BOOL_VALUES,
+                         parser=None, **kwargs):
 
-        parser = parser or EnvWrapper._SimpleParser
+        parser = parser or EnvSimpleParser
         parse = parser(**kwargs)
         decode = cls.decoder(bool_values=bool_values)
 
         return decode(parse(f), ())
 
     @classmethod
-    def read_from_json(cls, f, *, decoder=None, object_hook=None,
-                       parse_float=None,
-                       parse_int=None,
-                       parse_constant=None,
-                       object_pairs_hook=None, **kwargs):
+    def from_json(cls, f, *, decoder=None, object_hook=None,
+                  parse_float=None,
+                  parse_int=None,
+                  parse_constant=None,
+                  object_pairs_hook=None, **kwargs):
         d = json.load(f, cls=decoder, object_hook=object_hook,
                       parse_float=parse_float, parse_int=parse_int,
                       parse_constant=parse_constant,
@@ -529,12 +497,12 @@ class EnvWrapper:
         return decode(variables, bundles())
 
     @classmethod
-    def read_from_config(cls, f, bool_values=EnvVar.DEFAULT_BOOL_VALUES,
-                         parser_cls=cfg.ConfigParser, **kwargs):
+    def from_config(cls, f, bool_values=EnvVar.DEFAULT_BOOL_VALUES,
+                    parser_cls=cfg.ConfigParser, **kwargs):
         parser = parser_cls(**kwargs)
         parser.read_file(f)
 
-        deserialize = cls.decoder(bool_values=bool_values)
+        decode = cls.decoder(bool_values=bool_values)
 
         variables = (
             (var, parser[parser.default_section][var])
@@ -547,4 +515,4 @@ class EnvWrapper:
                     val = parser[section][var]
                     yield section, var, val
 
-        return deserialize(variables, bundles())
+        return decode(variables, bundles())

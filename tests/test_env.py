@@ -374,8 +374,8 @@ def test_to_config(os_env):
     )
     os_env.update(env.collect())
     f = io.StringIO()
-    env.write_to_config(f, bool_values=('off', 'on'), preserve_case=False,
-                        default_section='general')
+    env.to_config(f, bool_values=('off', 'on'), preserve_case=False,
+                  default_section='general')
     assert f.getvalue() == """[general]
 var = foo
 flag = off
@@ -396,17 +396,17 @@ def test_to_json(os_env):
     )
     os_env.update(env.collect())
     f = io.StringIO()
-    env.write_to_json(f)
+    env.to_json(f)
     assert f.getvalue() == '{"var": "foo", "flag": "false", ' \
                            '"settings": {"var1": "bar", "var2": "true"}}'
 
     f = io.StringIO()
-    env.write_to_json(f, preserve_case=True)
+    env.to_json(f, preserve_case=True)
     assert f.getvalue() == '{"VAR": "foo", "FLAG": "false", ' \
                            '"SETTINGS": {"VAR1": "bar", "VAR2": "true"}}'
 
     f = io.StringIO()
-    env.write_to_json(f, sort_keys=True)
+    env.to_json(f, sort_keys=True)
     assert f.getvalue() == '{"flag": "false", ' \
                            '"settings": {"var1": "bar", "var2": "true"}, ' \
                            '"var": "foo"}'
@@ -422,7 +422,7 @@ def test_to_source_file(os_env):
     )
     os_env.update(env.collect())
     f = io.StringIO()
-    env.write_to_source_file(f)
+    env.to_source_file(f)
     assert f.getvalue() == """VAR=foo
 VAR1=bar
 VAR2=1
@@ -442,7 +442,7 @@ def test_to_source_file_sorted(os_env):
     )
     os_env.update(env.collect())
     f = io.StringIO()
-    env.write_to_source_file(f, sort_keys=True)
+    env.to_source_file(f, sort_keys=True)
     assert f.getvalue() == """FLAG=no
 GRADE=AAA
 VAR=foo
@@ -485,10 +485,10 @@ def test_read_from_source_file():
         garbled: 'sh'pam'
         """
     )
-    env = EnvWrapper.read_from_source_file(f, inline_prefix='export',
-                                           inline_suffix=';',
-                                           value_delimiter='\'',
-                                           bool_values=('off', 'on'))
+    env = EnvWrapper.from_source_file(f, inline_prefix='export',
+                                      inline_suffix=';',
+                                      value_delimiter='\'',
+                                      bool_values=('off', 'on'))
     assert all(('FOO' in env, 'FLAG' in env, 'VAR1' in env, 'VAR2' in env))
     assert env.FOO == 'yada '
     assert env.FLAG == ' on '
@@ -512,8 +512,8 @@ def test_read_from_source_file_undelimited_values():
           var4: 7.09
         """
     )
-    env = EnvWrapper.read_from_source_file(f, delimiter=':',
-                                           bool_values=('off', 'on'))
+    env = EnvWrapper.from_source_file(f, delimiter=':',
+                                      bool_values=('off', 'on'))
     assert all(('FOO' in env, 'FLAG' in env, 'VAR1' in env, 'VAR2' in env))
     assert env.VAR2 == 'eg gs'
     assert env.FLAG is False
@@ -527,7 +527,7 @@ def test_read_from_json():
                     '"settings": {"var1": "bar", "var2": "true"}, '
                     '"var": "foo"}'
                     )
-    env = EnvWrapper.read_from_json(f)
+    env = EnvWrapper.from_json(f)
     assert all(('FLAG' in env, 'VAR' in env, 'VAR1' in env, 'VAR2' in env))
     assert 'SETTINGS' in env
 
@@ -543,8 +543,8 @@ var2 = baz
 
 """
                     )
-    env = EnvWrapper.read_from_config(f, default_section='general',
-                                      bool_values=('off', 'on'))
+    env = EnvWrapper.from_config(f, default_section='general',
+                                 bool_values=('off', 'on'))
     assert all(('FLAG' in env, 'VAR' in env, 'VAR1' in env, 'VAR2' in env))
     assert 'SETTINGS' in env
 
@@ -556,3 +556,54 @@ def test_proxy_def(os_env):
     assert env.VAR1 == 'spam'
     del os_env['OS_VAR1']
     assert env.VAR1 == 'foo'
+
+
+def test_dir_inc_exc(os_env):
+    env = EnvWrapper(FLAG=EnvVar(convert=bool, default='on'),
+                     FOO=EnvVar(exclude_if='FLAG'),
+                     SPAM=EnvVar(include_if='FLAG'))
+    os.environ['FLAG'] = 'on'
+    assert dir(env) == ['FLAG', 'SPAM']
+    os.environ['FLAG'] = 'off'
+    assert dir(env) == ['FLAG', 'FOO']
+
+
+def test_bundle_inc_exc(os_env):
+    env = EnvWrapper(FLAG=EnvVar(convert=bool, default='on'),
+                     FOO=EnvVar(exclude_if='FLAG', bundle='CIRCUS'),
+                     SPAM=EnvVar(include_if='FLAG', bundle='CIRCUS'))
+    os.environ['FLAG'] = 'on'
+    assert env.CIRCUS == {'spam': ''}
+
+    os.environ['FLAG'] = 'off'
+    assert env.CIRCUS == {'foo': ''}
+
+
+def test_process_float():
+    env = EnvWrapper(
+        PI=EnvVar(default='31,4', convert=float,
+                  preprocessor=lambda s: s.translate(s.maketrans(',', '.')),
+                  postprocessor=lambda f: round(f/10.0, 2))
+    )
+    assert env.PI == float(3.14)
+
+
+def test_iter_sub_cast(os_env):
+    env = EnvWrapper(
+        VALUES=EnvVar(postprocessor=EnvVar.tokenize(),
+                      sub_cast=int)
+    )
+    os_env['VALUES'] = '1 2 3 4 5'
+    assert env.VALUES == [1, 2, 3, 4, 5]
+
+
+def test_iter_sub_cast_literal_tuple(os_env):
+    env = EnvWrapper(VALUES=EnvVar(convert=tuple, sub_cast=int))
+    os.environ['VALUES'] = "('1', '2', '3')"
+    assert env.VALUES == (1, 2, 3)
+
+
+def test_iter_sub_cast_literal_dict(os_env):
+    env = EnvWrapper(VALUES=EnvVar(convert=dict, sub_cast=int))
+    os.environ['VALUES'] = "{'foo': '1', 'bar': '2', 'spam': '3'}"
+    assert env.VALUES == {'bar': 2, 'foo': 1, 'spam': 3}

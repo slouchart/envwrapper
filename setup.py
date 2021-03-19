@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 import io
 
 
-with io.open('README.txt') as f:
+with io.open('README.md') as f:
     readme = f.read()
 
 

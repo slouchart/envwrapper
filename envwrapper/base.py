@@ -1,7 +1,8 @@
 from importlib import import_module
 from os import environ as os_env
 from ast import literal_eval
-from typing import Iterable, Callable, Mapping
+from typing import Iterable, Callable, Mapping, Optional, Any, Type, Tuple, \
+    Generator, TextIO
 import configparser as cfg
 import json
 
@@ -258,7 +259,7 @@ class EnvWrapper:
         return self._bundles.items()
 
     class _EnvBundle:
-        def __init__(self, name: str, resolver: Callable):
+        def __init__(self, name: str, resolver: Callable[[str], bool]):
             self.name = name
             self._vars = dict()
             self._resolver = resolver
@@ -301,7 +302,8 @@ class EnvWrapper:
         except (ConfigurationError, KeyError):
             return default
 
-    def _build_exception(self, item, exc_cls, default_cls):
+    def _build_exception(self, item: str, exc_cls: Type[Exception],
+                         default_cls: Callable[[], Exception]) -> Exception:
 
         if not exc_cls:
             exc_cls = default_cls
@@ -327,7 +329,8 @@ class EnvWrapper:
             msg = f"'{type(self).__name__}' raises on '{item}' lookup"
             return exc_cls(msg)
 
-    def _get(self, item, or_raise=None):
+    def _get(self, item: str,
+             or_raise: Optional[Type[Exception]] = None) -> Any:
         if item in self._vars:
             var = self._vars[item]
             resolver = self._resolve_include_exclude
@@ -346,11 +349,11 @@ class EnvWrapper:
         else:
             raise self._build_exception(item, or_raise, AttributeError)
 
-    def __getitem__(self, item: str):
+    def __getitem__(self, item: str) -> Any:
         """Returns or fails as dict.__getitem__"""
         return self._get(item, or_raise=KeyError)
 
-    def __getattr__(self, item: str):
+    def __getattr__(self, item: str) -> Any:
         """Returns or fails as if item not in dir(self)"""
         return self._get(item, or_raise=AttributeError)
 
@@ -365,25 +368,25 @@ class EnvWrapper:
         """How many envvars are there?"""
         return len(dir(self))
 
-    def _resolve_include_exclude(self, ref_name: str):
+    def _resolve_include_exclude(self, ref_name: str) -> bool:
         if ref_name not in self._vars:
             raise ConfigurationError(
                 f'Variable {ref_name} is referenced but not declared'
             )
         return bool(self._vars[ref_name].get_value())
 
-    def keys(self):
+    def keys(self) -> Iterable[str]:
         """Provided for use by FlaskApp.Config.from_mapping"""
         return (
             k for k in set(self._vars.keys()) | set(self._bundles.keys())
             if k in self
         )
 
-    def items(self):
+    def items(self) -> Iterable[Tuple[str, Any]]:
         """Provided for use by FlaskApp.Config.from_mapping"""
         return iter(self._items())
 
-    def _items(self):
+    def _items(self) -> Generator:
         for name in self.keys():
             if name in self._bundles:
                 obj = self._bundles[name]
@@ -405,12 +408,12 @@ class EnvWrapper:
         serialize = self.encoder(on_var, preserve_case=True)
         return serialize(self, target=dict)
 
-    def __dir__(self):
+    def __dir__(self) -> Iterable[str]:
         """Provided for use by FlaskApp.Config.from_object"""
         return self.keys()
 
-    def to_config(self, f, preserve_case=False,
-                  bool_values=EnvVar.DEFAULT_BOOL_VALUES,
+    def to_config(self, f: TextIO, preserve_case: bool = False,
+                  bool_values: Tuple[str, str] = EnvVar.DEFAULT_BOOL_VALUES,
                   cls=cfg.ConfigParser,
                   **kwargs):
 
@@ -434,16 +437,16 @@ class EnvWrapper:
         config = encode(self, target=cls, **kwargs)
         config.write(f)
 
-    def to_json(self, f, preserve_case=False, **kwargs):
+    def to_json(self, f: TextIO, preserve_case: bool = False, **kwargs):
         return json.dump(self, f, cls=self.DEFAULT_JSON_ENCODER,
                          preserve_case=preserve_case, **kwargs)
 
-    def to_source_file(self, f, sort_keys=False,
-                       space_around_delimiters=False,
-                       delimiter='=',
-                       value_delimiter='',
-                       inline_prefix='',
-                       inline_suffix=''):
+    def to_source_file(self, f: TextIO, sort_keys: bool = False,
+                       space_around_delimiters: bool = False,
+                       delimiter: str = '=',
+                       value_delimiter: str = '',
+                       inline_prefix: str = '',
+                       inline_suffix: str = ''):
         items = self.collect()
         keys = sorted(items.keys()) if sort_keys else items.keys()
 
@@ -464,8 +467,10 @@ class EnvWrapper:
             f.write(f"{expression_builder(name, items[name])}\n")
 
     @classmethod
-    def from_source_file(cls, f, bool_values=EnvVar.DEFAULT_BOOL_VALUES,
-                         parser=None, **kwargs):
+    def from_source_file(
+            cls, f: TextIO,
+            bool_values: Tuple[str, str] = EnvVar.DEFAULT_BOOL_VALUES,
+            parser=None, **kwargs):
 
         parser = parser or EnvSimpleParser
         parse = parser(**kwargs)
@@ -474,7 +479,8 @@ class EnvWrapper:
         return decode(parse(f), ())
 
     @classmethod
-    def from_json(cls, f, *, decoder=None, object_hook=None,
+    def from_json(cls, f: TextIO, *,
+                  decoder=None, object_hook=None,
                   parse_float=None,
                   parse_int=None,
                   parse_constant=None,
@@ -497,7 +503,8 @@ class EnvWrapper:
         return decode(variables, bundles())
 
     @classmethod
-    def from_config(cls, f, bool_values=EnvVar.DEFAULT_BOOL_VALUES,
+    def from_config(cls, f: TextIO,
+                    bool_values: Tuple[str, str] = EnvVar.DEFAULT_BOOL_VALUES,
                     parser_cls=cfg.ConfigParser, **kwargs):
         parser = parser_cls(**kwargs)
         parser.read_file(f)

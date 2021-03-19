@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from typing import Match, TextIO
 
 
 class EnvParserInterface:
@@ -18,9 +19,9 @@ class EnvParserInterface:
         pass  # pragma: no cover
 
     @abstractmethod
-    def post_match(self, match):
+    def post_match(self, match: Match):
         pass  # pragma: no cover
 
     @abstractmethod
-    def __call__(self, f, *args, **kwargs):
+    def __call__(self, f: TextIO, *args, **kwargs):
         pass  # pragma: no cover

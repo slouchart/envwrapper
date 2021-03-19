@@ -14,6 +14,9 @@ from .exceptions import ConfigurationError
 from .exceptions import InclusionError, ExclusionError
 
 
+BoolValuesType = Tuple[str, str]
+
+
 class EnvVar:
     """
     Wraps an OS environment variable, processes, casts its value
@@ -28,13 +31,13 @@ class EnvVar:
 
     def __init__(self,
                  bundle: str = NO_BUNDLE,
-                 convert: Callable = lambda t: t,
+                 convert: Callable[[str], Any] = lambda t: t,
                  default: str = EMPTY,
                  include_if: str = None,
                  exclude_if: str = None,
                  prefix: str = NO_PREFIX,
-                 postprocessor: Callable = None,
-                 preprocessor: Callable = None,
+                 postprocessor: Callable[[Any], Any] = None,
+                 preprocessor: Callable[[str], str] = None,
                  proxy: str = NO_PROXY,
                  sub_cast: Callable = None
                  ):
@@ -139,7 +142,7 @@ class EnvVar:
     def pipeline(self):
         return self._pipeline
 
-    def _make_pipeline(self) -> Callable:
+    def _make_pipeline(self) -> Callable[[str], Any]:
         def init():
             return lambda t: t
 
@@ -172,10 +175,10 @@ class EnvVar:
 
         return p
 
-    def get_value(self):
+    def get_value(self) -> Any:
         return self.pipeline(self.get_raw_value())
 
-    def _cast(self, val):
+    def _cast(self, val) -> Any:
         if self.convert is bool:
             if val.lower() in self.TRUE_STRINGS:
                 return True
@@ -187,7 +190,7 @@ class EnvVar:
             return self.convert(val)
 
     @staticmethod
-    def import_class(fully_qualified_class_name: str):
+    def import_class(fully_qualified_class_name: str) -> type:
         parts = fully_qualified_class_name.split('.')
         module_name = '.'.join(parts[:-1])
         class_name = parts[-1]
@@ -208,7 +211,7 @@ class EnvVar:
         return bytes(value, encoding='utf-8')
 
     @staticmethod
-    def tokenize(sep: str = TOKEN_SEP) -> Callable:
+    def tokenize(sep: str = TOKEN_SEP) -> Callable[[str], Iterable[str]]:
         def f(val):
             return val.split(sep)
         return f
@@ -413,7 +416,7 @@ class EnvWrapper:
         return self.keys()
 
     def to_config(self, f: TextIO, preserve_case: bool = False,
-                  bool_values: Tuple[str, str] = EnvVar.DEFAULT_BOOL_VALUES,
+                  bool_values: BoolValuesType = EnvVar.DEFAULT_BOOL_VALUES,
                   cls=cfg.ConfigParser,
                   **kwargs):
 
@@ -469,7 +472,7 @@ class EnvWrapper:
     @classmethod
     def from_source_file(
             cls, f: TextIO,
-            bool_values: Tuple[str, str] = EnvVar.DEFAULT_BOOL_VALUES,
+            bool_values: BoolValuesType = EnvVar.DEFAULT_BOOL_VALUES,
             parser=None, **kwargs):
 
         parser = parser or EnvSimpleParser
@@ -504,7 +507,7 @@ class EnvWrapper:
 
     @classmethod
     def from_config(cls, f: TextIO,
-                    bool_values: Tuple[str, str] = EnvVar.DEFAULT_BOOL_VALUES,
+                    bool_values: BoolValuesType = EnvVar.DEFAULT_BOOL_VALUES,
                     parser_cls=cfg.ConfigParser, **kwargs):
         parser = parser_cls(**kwargs)
         parser.read_file(f)

@@ -1,3 +1,6 @@
+EnvWrapper: A wrapper around OS environment variables accessed through `os.environ`
+
+
 # Motivation
 Configuration applications with respect to 12-factor guidelines can be
 cumbersome and ugly. On the other hand, wrapping os.environ so that
@@ -52,7 +55,7 @@ needs more than one set of envvars or two envvars sharing the same name but with
 
 This value takes precedence over any default value set for the underlying `os.environ` key.
 In the case of a 'proxied' envvar, though, the default value set at `os.environ` level takes precedence
-as illustrated in the sequence of code below
+as illustrated in the sequence of code below:
 
 ``` python
 >>> env = EnvWrapper(VAR1=EnvVar(default='foo', proxy='OS_VAR1'))
@@ -139,7 +142,7 @@ bar
 ```
 
 Now, for something completely different, suppose you need to tell your app to
-use a certain class in some package at runtime:
+use a certain class in some package at runtime (a.k.a. Poor man's dependency injection):
 ``` python
 >>> env = EnvWrapper(FACTORY=EnvVar(postprocessor=EnvVar.import_class))
 >>> os.environ['FACTORY'] = 'my_app.my_package.SomeClass'
@@ -147,7 +150,7 @@ use a certain class in some package at runtime:
 <class 'my_app.my_package.SomeClass'>
 ```
 
-Or, as a conclusion, you need to change the separator of a float and divide its value by 10:
+Or, as a conclusion, you need to change the separator of a float and divide its value by 10 because some funny French guy messed around with its math:
 ``` python
 >>> env = EnvWrapper(PI=EnvVar(default='31,4', convert=float, preprocessor=lambda s: s.translate(s.maketrans(',', '.')), postprocessor=lambda f: round(f/10.0, 2))
 >>> print(env.PI)
@@ -158,7 +161,7 @@ Or, as a conclusion, you need to change the separator of a float and divide its 
 # Dealing with iterables
 Suppose some envvar contains a value such as `'1 2 3 4 5'` and you need to parse it as a list of integers.
 `envwrapper` offers you in addition of pre- and postprocessor a way to 'subcast' each element of any iterable
-computed by a preprocessor. Let's deal with that:
+computed by a postprocessor. Let's deal with that:
 ``` python
 >>> env = EnvWrapper(VALUES=EnvVar(postprocessor=EnvVar.tokenize(), sub_cast=int))
 >>> os.environ['VALUES'] = '1 2 3 4 5'
@@ -182,11 +185,11 @@ On the other hand, you may have an envvar that contains a Python literal evaluat
 ```
 
 # Codecs interface
-For those of you that are not that familiar with 12-factor app best practices or, for some reasons, do not want to implement them,
-the `EnvWrapper` is able to read from and write yo common configuration file formats.
+For those of you who are not that familiar with 12-factor app best practices or, for some reasons, do not want to implement them,
+the `EnvWrapper` is able to read from and write your common configuration file formats.
 
 The interface for doing so is rather self-explaining and I let the reader browse
-the code relative to methods named `to_<stuff>' and the call methods named `from_<stuff>`
+the code relative to methods named `to_<stuff>` and the class methods named `from_<stuff>`
 
 I nevertheless strongly recommend these readers to use the OS environment as a repository for configuration as files are pesky things that
 are prone to not be at the location we expect them to be.
@@ -198,3 +201,5 @@ some of their aspects are included in my own proposal.
 
 # Further reading
 [Configuring an application the 12-factor's way](https://12factor.net/config)
+[Phil's `flask-environ`](https://github.com/uniphil/flask-environ)
+[Rick's `envparse`](https://github.com/rconradharris/envparse)

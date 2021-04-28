@@ -54,7 +54,7 @@ needs more than one set of envvars or two envvars sharing the same name but with
 ```
 
 This value takes precedence over any default value set for the underlying `os.environ` key.
-In the case of a 'proxied' envvar, though, the default value set at `os.environ` level takes precedence
+In the case of a "proxied" envvar, though, the default value set at `os.environ` level takes precedence
 as illustrated in the sequence of code below:
 
 ``` python
@@ -97,7 +97,7 @@ Here comes the bundle feature to the rescue:
 }
 ```
 
-A bundle basically collects all envvars marked as 'bundled' under its name into a dict keyed by envvars names in lowercase.
+A bundle basically collects all envvars marked as "bundled" under its name into a dict keyed by envvars names in lowercase.
 Note that unbundled variables are still available:
 ``` python
 >>> print(env.FOO, env.SPAM)
@@ -107,7 +107,7 @@ bar eggs
 
 ## Conditionally excluding/including envvars
 You can tailor the exposed envvar interface of an EnvWrapper by specifying the conditions under which some variables are included or excluded.
-Suppose for instance that the variable FOO must be excluded if the variable FLAG is on and, on the other hand, the variable SPAM must be included
+Suppose for instance that the variable `FOO` must be excluded if the variable `FLAG` is on and, on the other hand, the variable `SPAM` must be included
 if the same variable is on.
 ``` python
 >>> env = EnvWrapper(FLAG=EnvVar(convert=bool, default='on'), FOO=EnvVar(exclude_if='FLAG'), SPAM=EnvVar(include_if='FLAG'))
@@ -160,7 +160,7 @@ Or, as a conclusion, you need to change the separator of a float and divide its 
 
 # Dealing with iterables
 Suppose some envvar contains a value such as `'1 2 3 4 5'` and you need to parse it as a list of integers.
-`envwrapper` offers you in addition of pre- and postprocessor a way to 'subcast' each element of any iterable
+`envwrapper` offers you in addition of pre- and postprocessor a way to "subcast" each element of any iterable
 computed by a postprocessor. Let's deal with that:
 ``` python
 >>> env = EnvWrapper(VALUES=EnvVar(postprocessor=EnvVar.tokenize(), sub_cast=int))
@@ -196,7 +196,7 @@ are prone to not be at the location we expect them to be.
 
 # Acknowledgments
 I'd like to thank Phil Schleihauf (uniphil@gmail.com) and Rick Harris (rconradharris@gmail.com) for their respective contributions
-to the art if dealing with configuration the 12-factor's way. Their own modules, `flask-environ` and `envparse` inspired me a lot and
+to the art of dealing with configuration the 12-factor's way. Their own modules, `flask-environ` and `envparse` inspired me a lot and
 some of their aspects are included in my own proposal.
 
 # Further reading

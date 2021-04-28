@@ -201,5 +201,8 @@ some of their aspects are included in my own proposal.
 
 # Further reading
 [Configuring an application the 12-factor's way](https://12factor.net/config)
+
 [Phil's `flask-environ`](https://github.com/uniphil/flask-environ)
+
 [Rick's `envparse`](https://github.com/rconradharris/envparse)
+

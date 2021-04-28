@@ -150,7 +150,7 @@ use a certain class in some package at runtime (a.k.a. Poor man's dependency inj
 <class 'my_app.my_package.SomeClass'>
 ```
 
-Or, as a conclusion, you need to change the separator of a float and divide its value by 10 because some funny French guy messed around with its math:
+Or, as a conclusion, you need to change the separator of a float and divide its value by 10 because some funny French guy messed around with his math:
 ``` python
 >>> env = EnvWrapper(PI=EnvVar(default='31,4', convert=float, preprocessor=lambda s: s.translate(s.maketrans(',', '.')), postprocessor=lambda f: round(f/10.0, 2))
 >>> print(env.PI)

@@ -2,7 +2,7 @@ from importlib import import_module
 from os import environ as os_env
 from ast import literal_eval
 from typing import Iterable, Callable, Mapping, Optional, Any, Type, Tuple, \
-    Generator, TextIO
+    Generator, TextIO, Union
 import configparser as cfg
 import json
 
@@ -15,6 +15,7 @@ from .exceptions import InclusionError, ExclusionError
 
 
 BoolValuesType = Tuple[str, str]
+ConvertCallableType = Union[Callable[[str], Any], Type[Any]]
 
 
 class EnvVar:
@@ -31,7 +32,7 @@ class EnvVar:
 
     def __init__(self,
                  bundle: str = NO_BUNDLE,
-                 convert: Callable[[str], Any] = lambda t: t,
+                 convert: ConvertCallableType = lambda t: t,
                  default: str = EMPTY,
                  include_if: str = None,
                  exclude_if: str = None,
